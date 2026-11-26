@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>中藥跑台知識王 115-1</title>
+    <!-- 改用雲端中繼 MQTT.js (100% 穿透 4G/5G 與 Wi-Fi 防火牆，支援公開房間大廳) -->
+    <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+    <style>
+        :root { --primary:#2b580c; --secondary:#639a67; --accent:#f39c12; --bg:#f4f7f6; --correct:#27ae60; --wrong:#e74c3c; --rival:#2980b9; --boss:#c0392b; --purple:#8e44ad; }
+        * { box-sizing:border-box; font-family:'PingFang TC','Microsoft JhengHei',sans-serif; }
+        body { margin:0; background:var(--bg); color:#333; display:flex; justify-content:center; min-height:100vh; }
+        #app { width:100%; max-width:480px; background:white; min-height:100vh; display:flex; flex-direction:column; box-shadow:0 0 15px rgba(0,0,0,0.1); position:relative; }
+        header { background:var(--primary); color:white; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; font-size:1.15rem; font-weight:bold; }
+        .coin-pill { background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); padding:4px 10px; border-radius:20px; font-size:0.9rem; color:#ffeaa7; cursor:pointer; display:flex; align-items:center; gap:4px; }
+        .screen { display:none; flex-direction:column; padding:14px; flex:1; }
+        .screen.active { display:flex; }
+        .btn { background:var(--secondary); color:white; border:none; padding:11px; margin:4px 0; border-radius:12px; font-size:1rem; font-weight:bold; cursor:pointer; transition:0.2s; box-shadow:0 4px 6px rgba(0,0,0,0.1); }
+        .btn:active { transform:scale(0.98); }
+        .btn:disabled { background:#ccc; cursor:not-allowed; }
+        .btn-accent { background:var(--accent); }
+        .btn-rival { background:var(--rival); }
+        .btn-boss { background:var(--boss); }
+        .btn-purple { background:var(--purple); }
+        .btn-gold { background:linear-gradient(135deg,#f39c12,#d35400); color:white; }
+        .btn-outline { background:transparent; border:2px solid var(--primary); color:var(--primary); }
+        .card { background:#fff; border:1px solid #ddd; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+        .filter-box { background:#f8faf8; border:1px solid #cde0cd; border-radius:10px; padding:10px; margin-bottom:8px; display:none; }
+        .filter-item { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.88rem; cursor:pointer; }
+        .filter-item input { width:17px; height:17px; accent-color:var(--primary); cursor:pointer; }
+        .setting-bar { display:flex; align-items:center; justify-content:space-between; background:#f4f7f4; border:1px solid #dce6dc; padding:8px 12px; border-radius:10px; margin:4px 0 6px 0; font-size:0.88rem; font-weight:bold; color:#2b580c; cursor:pointer; }
+        .setting-bar input { width:18px; height:18px; accent-color:var(--primary); cursor:pointer; }
+        .vs-banner { display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; border:1px solid #e9ecef; border-radius:12px; padding:8px 12px; margin-bottom:6px; }
+        .player-box { display:flex; flex-direction:column; width:43%; }
+        .player-box.right { text-align:right; }
+        .p-name { font-size:0.82rem; color:#555; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .p-score { font-size:1.4rem; font-weight:900; color:var(--primary); }
+        .player-box.right .p-score { color:var(--rival); }
+        .p-status { font-size:0.73rem; color:#888; min-height:15px; font-weight:bold; }
+        .pressure-box { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-weight:900; }
+        .live-pts { font-size:1.05rem; color:#d35400; transition:color 0.2s; }
+        .live-pts.danger { color:#e74c3c; animation:pulse 0.4s infinite alternate; }
+        .freeze-badge { background:#3498db; color:white; font-size:0.72rem; padding:2px 6px; border-radius:6px; margin-left:4px; }
+        @keyframes pulse { from{transform:scale(1);} to{transform:scale(1.07);} }
+        .timer-bar { width:100%; height:9px; background:#eee; border-radius:5px; overflow:hidden; margin-bottom:8px; }
+        .timer-fill { height:100%; background:linear-gradient(90deg,#e74c3c,#f39c12,#27ae60); width:100%; }
+        .question-box { text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center; margin-bottom:8px; position:relative; }
+        .herb-img { width:100%; max-height:180px; min-height:140px; border-radius:10px; object-fit:contain; border:2px solid #eee; background:#fafafa; margin-bottom:6px; }
+        .img-loading-mask { position:absolute; top:0; left:0; right:0; height:180px; background:rgba(250,250,250,0.92); display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--primary); border-radius:10px; font-size:0.95rem; }
+        .q-prompt-banner { background:#eef5ee; color:var(--primary); padding:6px 10px; border-radius:8px; font-size:0.88rem; font-weight:bold; width:100%; }
+        .options-grid { display:grid; grid-template-columns:1fr; gap:8px; flex:1; }
+        .split-container { display:grid; grid-template-columns:1fr 1.15fr; gap:8px; width:100%; flex:1; }
+        .split-col { display:flex; flex-direction:column; gap:7px; }
+        .split-header { text-align:center; font-size:0.8rem; font-weight:bold; background:#eee; padding:4px; border-radius:6px; color:#444; }
+        .opt-btn { background:#f8f9fa; border:2px solid #dee2e6; padding:10px 8px; border-radius:10px; font-size:0.94rem; font-weight:bold; cursor:pointer; text-align:center; transition:0.15s; color:#333; line-height:1.3; position:relative; display:flex; align-items:center; justify-content:center; flex:1; }
+        .opt-btn.correct { background:var(--correct)!important; color:white!important; border-color:var(--correct)!important; }
+        .opt-btn.wrong { background:var(--wrong)!important; color:white!important; border-color:var(--wrong)!important; }
+        .rival-tag { position:absolute; right:6px; bottom:4px; background:var(--rival); color:white; font-size:0.65rem; padding:1px 5px; border-radius:5px; pointer-events:none; }
+        .typing-box { background:#f8f9fa; border:2px solid #dee2e6; border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:6px; }
+        .typing-input { width:100%; padding:10px; border:2px solid #ccc; border-radius:8px; font-size:0.98rem; font-weight:bold; }
+        .typing-input.correct { border-color:var(--correct); background:#eafaf1; color:#155724; }
+        .typing-input.wrong { border-color:var(--wrong); background:#fdedec; color:#721c24; }
+        .ans-reveal { font-size:0.85rem; font-weight:bold; padding:6px; border-radius:6px; background:#fff3cd; color:#856404; display:none; text-align:center; }
+        .tab-bar { display:flex; gap:6px; margin-bottom:10px; }
+        .tab-btn { flex:1; padding:9px 4px; border:2px solid var(--primary); background:white; color:var(--primary); border-radius:10px; font-weight:bold; font-size:0.86rem; cursor:pointer; text-align:center; }
+        .tab-btn.active { background:var(--primary); color:white; }
+        .review-card-item { display:flex; gap:10px; align-items:center; padding:10px; border:1px solid #e0e0e0; border-radius:10px; margin-bottom:8px; background:#fff; cursor:pointer; }
+        .review-card-item img { width:80px; height:80px; object-fit:cover; border-radius:8px; background:#f0f0f0; border:1px solid #ddd; flex-shrink:0; }
+        .mask-blur { filter:blur(7px); background:#ccc; border-radius:4px; user-select:none; transition:0.2s; }
+        .review-card-item.revealed .mask-blur { filter:none; background:transparent; }
+        .wrong-toggle-btn { border:1px solid #ddd; background:#f8f9fa; color:#555; padding:5px 9px; border-radius:8px; font-size:0.76rem; font-weight:bold; cursor:pointer; white-space:nowrap; }
+        .wrong-toggle-btn.in-wrong { background:#fdedec; color:#e74c3c; border-color:#f5c6cb; }
+        .flashcard-box { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#fafafa; border:2px solid #dce6dc; border-radius:16px; padding:16px; text-align:center; cursor:pointer; position:relative; min-height:310px; }
+        .flashcard-img { max-width:100%; max-height:210px; border-radius:10px; object-fit:contain; margin-bottom:10px; }
+        .npc-card { display:flex; align-items:center; justify-content:space-between; padding:11px; border:2px solid #eee; border-radius:12px; margin-bottom:8px; cursor:pointer; transition:0.2s; }
+        .npc-card.lv1 { border-left:6px solid #27ae60; } .npc-card.lv2 { border-left:6px solid #2980b9; } .npc-card.lv3 { border-left:6px solid #8e44ad; } .npc-card.lv4 { border-left:6px solid #e67e22; } .npc-card.lv5 { border-left:6px solid #e74c3c; background:#fff5f5; }
+        .bank-balance-card { background:linear-gradient(135deg,#2b580c,#1e3c08); color:white; border-radius:14px; padding:15px; margin-bottom:12px; text-align:center; }
+        .upgrade-item { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:10px 0; }
+        .upgrade-item:last-child { border-bottom:none; }
+        .herb-list { max-height:42vh; overflow-y:auto; border:1px solid #eee; border-radius:8px; padding:5px; margin-bottom:10px; }
+        .herb-item { display:flex; align-items:center; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; }
+        .badge { padding:5px 10px; border-radius:12px; font-size:0.82rem; background:#eee; }
+        .badge.ok { background:#d4edda; color:#155724; font-weight:bold; }
+        input[type="text"], input[type="number"], select { width:100%; padding:9px 10px; margin:4px 0; border:1px solid #ccc; border-radius:8px; font-size:0.95rem; }
+        .room-pin { font-size:2rem; font-weight:900; color:var(--accent); letter-spacing:4px; text-align:center; margin:8px 0; }
+        .room-list-box { max-height:150px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:10px; padding:6px; background:#fafafa; margin:6px 0 10px 0; }
+        .room-item { display:flex; justify-content:space-between; align-items:center; background:white; border:1px solid #ddd; border-left:5px solid var(--accent); padding:9px 12px; border-radius:8px; margin-bottom:6px; cursor:pointer; transition:0.15s; }
+        .room-item:active { transform:scale(0.98); }
+    </style>
+</head>
+<body>
+<div id="app">
+    <header>
+        <span>🌿 中藥跑台知識王</span>
+        <div class="coin-pill" onclick="showBankScreen()">💰 $<span id="header-coins">0</span></div>
+    </header>
+
+    <!-- 首頁 -->
+    <div id="home-screen" class="screen active">
+        <div class="card" style="padding:9px 14px; margin-bottom:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9rem;">
+                <span>題庫狀態：<strong style="color:var(--primary);">50 / 50 單題動態讀取</strong></span>
+                <span>最高分：<strong id="home-best-score" style="color:var(--accent);">0</strong></span>
+            </div>
+        </div>
+
+        <label style="font-weight:bold; font-size:0.86rem;">🎯 選擇出題模式：</label>
+        <select id="quiz-type-select" onchange="toggleCustomFilter()">
+            <option value="typing_input">⌨️ 手打填充（打字答藥名＋部位，部位免打乾燥）</option>
+            <option value="both_split">⚖️ 兩個一起考（藥名/部位各4選項，對一邊拿一半分）</option>
+            <option value="both_combined">📦 兩個一起考（藥名＋部位合併共4個選項）</option>
+            <option value="name_only">🌿 只考藥材名（不提供部位）</option>
+            <option value="part_with_name">🌱 只考部位（提供藥材名提示）</option>
+            <option value="part_no_name">❓ 只考部位（不提供藥材名，純看圖猜部位）</option>
+            <option value="custom_mix">🔥 綜合全考（可自由勾選要考哪些題型）</option>
+        </select>
+
+        <div id="custom-filter-box" class="filter-box">
+            <div style="font-size:0.8rem; font-weight:bold; color:var(--primary); margin-bottom:4px;">請勾選要納入「綜合全考」的題型：</div>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="typing_input" checked> ⌨️ 手打填充（藥名＋部位，免打乾燥）</label>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="name_only" checked> 🌿 只考藥材名（不提供部位）</label>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="part_with_name" checked> 🌱 只考部位（提供藥材名）</label>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="part_no_name" checked> ❓ 只考部位（不提供藥材名）</label>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="both_split" checked> ⚖️ 兩個一起考（各4選項，對一邊拿一半分）</label>
+            <label class="filter-item"><input type="checkbox" class="mix-chk" value="both_combined" checked> 📦 兩個一起考（合併共4個選項）</label>
+        </div>
+
+        <label style="font-weight:bold; font-size:0.86rem;">🔢 每局題數：</label>
+        <select id="quiz-count" style="margin-top:2px;">
+            <option value="10">⚡ 10 題 (快速)</option>
+            <option value="25">🔥 25 題 (半套)</option>
+            <option value="50">👑 50 題 (全刷)</option>
+        </select>
+
+        <label class="setting-bar">
+            <span>⚙️ 單機模式：作答後自動進入下一題</span>
+            <input type="checkbox" id="auto-next-toggle" onchange="saveAutoNextSetting()">
+        </label>
+
+        <button class="btn btn-purple" onclick="showReviewScreen()">📖 考前複習模式（閃卡單張讀圖／圖鑑／錯題）</button>
+        <button class="btn btn-boss" onclick="showNpcScreen()">🤖 挑戰五大 NPC 魔王 (贏取懸賞金)</button>
+        <button class="btn" onclick="startSinglePlayer()">👤 單機自我計時練習 (寫一題讀一題)</button>
+        <button class="btn btn-accent" onclick="openOnlineLobby()">⚔️ 真・線上即時連線對戰 (雲端大廳)</button>
+        <button class="btn btn-gold" onclick="showBankScreen()">💰 神農銀行（升級技能／轉帳匯款）</button>
+        <div style="display:flex; gap:6px;">
+            <button class="btn btn-rival" style="flex:1; font-size:0.88rem;" onclick="showRecordScreen()">🏆 本地戰績紀錄</button>
+            <button class="btn btn-outline" style="flex:1; font-size:0.88rem;" onclick="showScreen('import-screen')">📂 本地圖片覆蓋</button>
+        </div>
+    </div>
+
+    <!-- 考前複習模式畫面 -->
+    <div id="review-screen" class="screen">
+        <div class="tab-bar">
+            <button id="tab-flash-btn" class="tab-btn active" onclick="switchReviewTab('flash')">🃏 單張記憶閃卡</button>
+            <button id="tab-list-btn" class="tab-btn" onclick="switchReviewTab('list')">🗂️ 圖鑑列表</button>
+            <button id="tab-wrong-btn" class="tab-btn" onclick="switchReviewTab('wrong')">❌ 錯題本 (<span id="wrong-count-badge">0</span>)</button>
+        </div>
+
+        <div id="review-tab-flash" style="display:flex; flex-direction:column; flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.86rem; font-weight:bold; color:#555;">
+                <span id="flash-progress">卡片 1 / 50</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="flash-wrong-toggle-btn" class="wrong-toggle-btn" onclick="toggleCurrentFlashcardWrong(event)">➕ 加入錯題</button>
+                    <label style="cursor:pointer;"><input type="checkbox" id="flash-only-wrong" onchange="initFlashcards()"> 只抽錯題</label>
+                </div>
+            </div>
+            <div class="flashcard-box" onclick="flipFlashcard()">
+                <img id="flash-img" class="flashcard-img" src="">
+                <div id="flash-front-tip" style="color:#666; font-weight:bold; font-size:0.95rem;">👆 點擊卡片翻開「藥名 ＋ 藥用部位」</div>
+                <div id="flash-back-ans" style="display:none;">
+                    <div id="flash-ans-name" style="font-size:1.5rem; font-weight:900; color:var(--primary); margin:4px 0;"></div>
+                    <div id="flash-ans-part" style="font-size:1.1rem; font-weight:bold; color:#d35400;"></div>
+                    <div id="flash-ans-latin" style="font-size:0.8rem; color:#888; margin-top:4px;"></div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="moveFlashcard(-1)">⬅️ 上一張</button>
+                <button class="btn btn-accent" style="flex:1;" onclick="shuffleFlashcards()">🔀 隨機抽卡</button>
+                <button class="btn" style="flex:1;" onclick="moveFlashcard(1)">下一張 ➡️</button>
+            </div>
+        </div>
+
+        <div id="review-tab-list" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:8px;">
+                <input type="text" id="review-search" placeholder="🔍 搜尋編號、藥名或部位..." oninput="renderReviewList()" style="margin:0; flex:1;">
+                <label style="display:flex; align-items:center; gap:4px; font-size:0.82rem; font-weight:bold; background:#eee; padding:8px; border-radius:8px; white-space:nowrap; cursor:pointer;">
+                    <input type="checkbox" id="review-mask-toggle" onchange="renderReviewList()"> 🙈 遮答案
+                </label>
+            </div>
+            <div id="review-list-container" style="flex:1; overflow-y:auto; padding-right:2px;"></div>
+        </div>
+
+        <div id="review-tab-wrong" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+            <div class="card" style="padding:10px; margin-bottom:8px; font-size:0.84rem; background:#fff5f5; border-color:#f5c6cb;">
+                💡 測驗答錯的藥材會自動收錄至此，您也可以在「記憶閃卡」或「圖鑑列表」中手動將不熟的藥材加入錯題本！
+                <div style="display:flex; gap:6px; margin-top:8px;">
+                    <button class="btn btn-boss" style="flex:1; margin:0; padding:8px; font-size:0.86rem;" onclick="startWrongOnlyQuiz()">🔥 針對錯題開局特訓</button>
+                    <button class="btn" style="background:#95a5a6; margin:0; padding:8px; font-size:0.82rem;" onclick="clearWrongBook()">清空錯題</button>
+                </div>
+            </div>
+            <div id="wrong-book-container" style="flex:1; overflow-y:auto;"></div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:8px;" onclick="showScreen('home-screen')">返回首頁</button>
+    </div>
+
+    <!-- 神農銀行 -->
+    <div id="bank-screen" class="screen" style="overflow-y:auto;">
+        <div class="bank-balance-card">
+            <div style="font-size:0.85rem; opacity:0.85;" id="bank-rank-title">🌱 見習藥僮</div>
+            <div style="font-size:2.1rem; font-weight:900; margin:4px 0; color:#ffeaa7;">💰 $<span id="bank-balance">0</span></div>
+            <div style="font-size:0.78rem; opacity:0.85;">每局得分自動轉為神農幣｜手打題享 1.5 倍賞金</div>
+        </div>
+
+        <div class="card">
+            <h4 style="margin:0 0 8px 0; color:var(--primary);">🛠️ 轉帳投資與技能升級</h4>
+            <div class="upgrade-item">
+                <div>
+                    <strong>📈 賞金倍率升級 (Lv.<span id="up-mult-lv">1</span>)</strong>
+                    <div style="font-size:0.78rem; color:#666;">結算神農幣獲得 <span id="up-mult-val">100</span>% 倍率</div>
+                </div>
+                <button class="btn btn-accent" style="margin:0; padding:8px 12px; font-size:0.85rem;" onclick="buyUpgrade('mult')">升級 ($<span id="up-mult-cost">300</span>)</button>
+            </div>
+            <div class="upgrade-item">
+                <div>
+                    <strong>⏳ 凍時懷錶升級 (Lv.<span id="up-freeze-lv">0</span>)</strong>
+                    <div style="font-size:0.78rem; color:#666;">每題開局凍結時間 <span id="up-freeze-val">0.0</span> 秒不掉分</div>
+                </div>
+                <button class="btn btn-rival" style="margin:0; padding:8px 12px; font-size:0.85rem;" onclick="buyUpgrade('freeze')">升級 ($<span id="up-freeze-cost">500</span>)</button>
+            </div>
+            <div class="upgrade-item">
+                <div>
+                    <strong>🏦 神農定存金庫 (Lv.<span id="up-bank-lv">0</span>)</strong>
+                    <div style="font-size:0.78rem; color:#666;">每打完一場自動發放存款 <span id="up-bank-val">0</span>% 複利利息</div>
+                </div>
+                <button class="btn" style="margin:0; padding:8px 12px; font-size:0.85rem;" onclick="buyUpgrade('bank')">升級 ($<span id="up-bank-cost">800</span>)</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 style="margin:0 0 6px 0; color:var(--rival);">💸 跨手機線上即時匯款 (雲端秒轉)</h4>
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <button class="btn btn-outline" style="flex:1; padding:8px; font-size:0.85rem; margin:0;" onclick="openReceiveWire()">📥 開啟我的收款碼</button>
+            </div>
+            <div id="wire-receive-box" style="display:none; text-align:center; background:#eef7fb; padding:8px; border-radius:8px; margin-bottom:8px;">
+                <div style="font-size:0.8rem;">請匯款方輸入此 4 位數收款帳號：</div>
+                <div class="room-pin" id="wire-pin-display" style="font-size:1.6rem; margin:4px 0;">----</div>
+                <div id="wire-receive-status" style="font-size:0.8rem; color:var(--rival); font-weight:bold;">等待匯款連入...</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="wire-target-pin" placeholder="對方4位收款碼" maxlength="4" style="width:45%; margin:0;">
+                <input type="number" id="wire-amount" placeholder="匯款金額" style="width:55%; margin:0;">
+            </div>
+            <button class="btn btn-rival" style="width:100%; padding:9px; font-size:0.9rem; margin-top:6px;" onclick="sendOnlineWire()">🚀 立即連線匯款</button>
+        </div>
+
+        <div class="card">
+            <h4 style="margin:0 0 6px 0; color:#d35400;">🎟️ 離線支票轉帳（傳 LINE 即可領）</h4>
+            <div style="display:flex; gap:6px;">
+                <input type="number" id="cheque-amount" placeholder="輸入要開立的支票金額" style="margin:0;">
+                <button class="btn btn-accent" style="white-space:nowrap; margin:0; padding:8px 12px; font-size:0.85rem;" onclick="generateCheque()">開立支票</button>
+            </div>
+            <div id="cheque-output-box" style="display:none; background:#fff8e7; border:1px dashed #f39c12; padding:8px; border-radius:8px; margin-top:6px; font-size:0.82rem; word-break:break-all;"></div>
+            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="cheque-redeem-input" placeholder="貼上朋友傳來的 HB-... 支票碼" style="margin:0;">
+                <button class="btn" style="white-space:nowrap; margin:0; padding:8px 12px; font-size:0.85rem;" onclick="redeemCheque()">兌現存入</button>
+            </div>
+        </div>
+        <button class="btn btn-outline" onclick="closeBankScreen()">返回首頁</button>
+    </div>
+
+    <!-- NPC 選擇畫面 -->
+    <div id="npc-screen" class="screen">
+        <h3 style="margin:0 0 10px 0;">🤖 選擇要挑戰的 NPC 對手</h3>
+        <div id="npc-list-container" style="flex:1; overflow-y:auto;"></div>
+        <button class="btn btn-outline" onclick="showScreen('home-screen')">返回首頁</button>
+    </div>
+
+    <!-- 本地戰績畫面 -->
+    <div id="record-screen" class="screen">
+        <h3 style="margin:0 0 10px 0;">🏆 本地戰績與對戰紀錄</h3>
+        <div class="card" id="record-summary" style="font-size:0.9rem; line-height:1.6;"></div>
+        <h4 style="margin:6px 0;">⚔️ 對戰五大 NPC 勝敗紀錄</h4>
+        <div class="card" id="npc-record-box" style="font-size:0.88rem; padding:10px 14px;"></div>
+        <h4 style="margin:6px 0;">📜 最近對戰歷史 (最新 20 場)</h4>
+        <div class="herb-list" id="history-list-container" style="max-height:26vh; font-size:0.85rem;"></div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" style="flex:1;" onclick="showScreen('home-screen')">返回首頁</button>
+            <button class="btn" style="background:#95a5a6; padding:10px; font-size:0.85rem;" onclick="clearAllRecords()">🗑️ 清空紀錄</button>
+        </div>
+    </div>
+
+    <!-- 線上對戰大廳 (支援公開房間列表點擊即進 + 4位數房號) -->
+    <div id="multi-screen" class="screen">
+        <h3 style="margin:0 0 8px 0;">⚔️ 雲端即時連線大廳</h3>
+        <div class="card" style="padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-weight:bold; font-size:0.88rem;">您的暱稱：</label>
+                <span id="mqtt-net-badge" style="font-size:0.75rem; color:var(--correct); font-weight:bold;">🟢 雲端大廳已連線</span>
+            </div>
+            <input type="text" id="player-name" value="神農氏" style="margin-top:4px;">
+        </div>
+
+        <div id="lobby-actions" class="card" style="flex:1; display:flex; flex-direction:column;">
+            <button class="btn btn-accent" style="width:100%; margin:0 0 10px 0;" onclick="createOnlineRoom()">🏠 我當房主（建立公開對戰房間）</button>
+            
+            <div style="font-size:0.86rem; font-weight:bold; color:var(--primary); display:flex; justify-content:space-between; align-items:center;">
+                <span>📡 目前開放中的房間（點擊直接加入）：</span>
+            </div>
+            <div id="public-room-list" class="room-list-box">
+                <div style="text-align:center; color:#999; padding:18px; font-size:0.84rem;">目前尚無房間，請點擊上方按鈕建立房間！</div>
+            </div>
+
+            <div style="font-size:0.84rem; font-weight:bold; color:#555; margin-top:auto;">🔢 或直接輸入 4 位數房號加入：</div>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+                <input type="text" id="join-code-input" placeholder="輸入房號 (如 8392)" maxlength="4" style="text-align:center; font-size:1.1rem; font-weight:bold; margin:0; flex:1;">
+                <button class="btn btn-rival" style="margin:0; padding:0 18px; white-space:nowrap;" onclick="joinOnlineRoom()">🚀 加入</button>
+            </div>
+        </div>
+
+        <div id="lobby-waiting" class="card" style="display:none; text-align:center;">
+            <div style="font-size:0.9rem; font-weight:bold; color:#555;">房間已廣播至公開大廳！<br>朋友可直接點擊大廳列表，或輸入房號：</div>
+            <div class="room-pin" id="display-room-pin">----</div>
+            <p id="conn-status" style="color:var(--primary); font-weight:bold; font-size:0.9rem;">⏳ 正在等待對手點選加入...</p>
+        </div>
+        <button class="btn btn-outline" onclick="leaveLobby()">返回首頁</button>
+    </div>
+
+    <!-- 本地圖片覆蓋畫面 -->
+    <div id="import-screen" class="screen">
+        <h3>📂 本地圖片手動覆蓋</h3>
+        <div class="card" style="font-size:0.88rem;">
+            ⚡ <strong>目前已啟用「寫一題、讀一題」雲端極速模式！</strong><br>
+            系統只會在考到該題時，才自動去讀取同資料夾下的 <code>1.三七.jpg</code> ~ <code>50.神麴.jpg</code>（第 5 號為 <code>5.川烏.jpg</code>），完全不卡頻寬！<br><br>
+            若您是在離線環境想手動匯入本地照片覆蓋，請點下方按鈕：<br><br>
+            <input type="file" id="batch-file-input" multiple accept="*/*" style="display:none" onchange="handleBatchUpload(event)">
+            <button class="btn" style="width:100%; margin:0 0 8px 0;" onclick="document.getElementById('batch-file-input').click()">📂 開啟檔案管理員（全選檔案）</button>
+            <input type="file" id="batch-folder-input" webkitdirectory directory multiple style="display:none" onchange="handleBatchUpload(event)">
+            <button class="btn btn-rival" style="width:100%; margin:0; padding:10px; font-size:0.95rem;" onclick="document.getElementById('batch-folder-input').click()">📁 或直接選取「整個資料夾」一鍵匯入</button>
+        </div>
+        <div id="import-status" style="font-size:0.9rem; color:var(--primary); font-weight:bold; margin-bottom:6px; display:none;"></div>
+        <button class="btn btn-outline" onclick="showScreen('home-screen')">✔️ 返回首頁</button>
+    </div>
+
+    <!-- 遊戲進行畫面 -->
+    <div id="game-screen" class="screen">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; margin-bottom:4px; color:#555; font-size:0.88rem;">
+            <span id="hud-progress">第 1 / 10 題</span>
+            <span id="hud-qtype-badge" style="background:#e8f0e8; color:var(--primary); padding:2px 8px; border-radius:8px; font-size:0.78rem;">題型</span>
+        </div>
+        <div class="vs-banner">
+            <div class="player-box">
+                <span class="p-name" id="p1-name">我</span>
+                <span class="p-score" id="p1-score">0</span>
+                <span class="p-status" id="p1-status">思考中...</span>
+            </div>
+            <div style="font-weight:900; color:#ccc; font-size:1.1rem;">VS</div>
+            <div class="player-box right" id="rival-box">
+                <span class="p-name" id="p2-name">對手</span>
+                <span class="p-score" id="p2-score">0</span>
+                <span class="p-status" id="p2-status">思考中...</span>
+            </div>
+        </div>
+        <div class="pressure-box">
+            <span style="font-size:0.85rem; color:#666;">
+                ⏱️ 剩餘 <span id="live-time">10.0</span> 秒
+                <span id="freeze-indicator" class="freeze-badge" style="display:none;">❄️ 凍時中</span>
+            </span>
+            <span class="live-pts" id="live-pts-box">⚡ 本題可得：<span id="live-pts">200</span> 分</span>
+        </div>
+        <div class="timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
+        <div class="question-box">
+            <div id="img-loading-mask" class="img-loading-mask" style="display:none;">⏳ 正在讀取本題圖片（計時暫停）...</div>
+            <img id="q-img" class="herb-img" src="">
+            <div id="q-prompt" class="q-prompt-banner">題目提示</div>
+        </div>
+        <div id="options-container" style="display:flex; flex-direction:column; flex:1;"></div>
+        <button id="manual-next-btn" class="btn btn-rival" style="display:none; width:100%; margin-top:8px; padding:13px; font-size:1.05rem;" onclick="proceedToNextQuestion()">➡️ 下一題 (Enter)</button>
+    </div>
+
+    <!-- 結算畫面 -->
+    <div id="result-screen" class="screen" style="text-align:center; justify-content:center;">
+        <h2 id="res-title">🎉 測驗結束！</h2>
+        <div class="card">
+            <div style="display:flex; justify-content:space-around; align-items:center; margin:12px 0;">
+                <div>
+                    <div id="res-my-name" style="font-weight:bold; color:#666;">我</div>
+                    <div id="res-my-score" style="font-size:2.3rem; font-weight:900; color:var(--primary);">0</div>
+                </div>
+                <div id="res-vs-divider" style="font-size:1.2rem; font-weight:bold; color:#aaa;">VS</div>
+                <div id="res-rival-col">
+                    <div id="res-rival-name" style="font-weight:bold; color:#666;">對手</div>
+                    <div id="res-rival-score" style="font-size:2.3rem; font-weight:900; color:var(--rival);">0</div>
+                </div>
+            </div>
+            <p id="res-accuracy" style="font-size:1.02rem; font-weight:bold; color:#444; margin:6px 0;"></p>
+            <div id="res-coin-reward" style="background:#fff8e7; border:1px solid #f39c12; color:#b7791f; padding:10px; border-radius:10px; font-weight:bold; font-size:0.92rem; margin-top:8px;"></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn" style="flex:1;" onclick="leaveLobby()">🔄 返回主選單</button>
+            <button class="btn btn-gold" style="flex:1;" onclick="leaveLobby(); showBankScreen();">💰 前往神農銀行</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const HERB_DATA = [
+    {id:1, name:"三七", latin:"Notoginseng radix et rhizoma", part:"乾燥根及根莖"},
+    {id:2, name:"三稜", latin:"Sparganii rhizoma", part:"乾燥塊莖"},
+    {id:3, name:"山豆根", latin:"Sophorae tonkinensis radix", part:"乾燥根及根莖"},
+    {id:4, name:"山茱萸", latin:"Corni fructus", part:"乾燥成熟果肉"},
+    {id:5, name:"川烏", latin:"Aconiti radix", part:"乾燥主根（母根）"},
+    {id:6, name:"五味子", latin:"Schisandrae fructus", part:"乾燥成熟果實"},
+    {id:7, name:"木香", latin:"Dolomiaeae radix", part:"乾燥根"},
+    {id:8, name:"北板藍根", latin:"Isatidis radix", part:"乾燥根"},
+    {id:9, name:"白朮", latin:"Atractylodis macrocephalae rhizoma", part:"乾燥根莖"},
+    {id:10, name:"白扁豆", latin:"Lablab album semen", part:"乾燥成熟種子"},
+    {id:11, name:"白茅根", latin:"Imperatae rhizoma", part:"乾燥根莖"},
+    {id:12, name:"百部", latin:"Stemonae radix", part:"乾燥塊根"},
+    {id:13, name:"沒藥", latin:"Myrrha", part:"樹幹皮部滲出之油膠樹脂"},
+    {id:14, name:"沙苑蒺藜", latin:"Astragali complanati semen", part:"乾燥種子"},
+    {id:15, name:"車前子", latin:"Plantaginis semen", part:"乾燥成熟種子"},
+    {id:16, name:"防己", latin:"Stephaniae tetrandrae radix", part:"乾燥根"},
+    {id:17, name:"防風", latin:"Saposhnikoviae radix", part:"乾燥根及根莖"},
+    {id:18, name:"羌活", latin:"Notopterygii rhizoma et radix", part:"乾燥根莖及根"},
+    {id:19, name:"前胡", latin:"Peucedani radix", part:"乾燥根莖及根"},
+    {id:20, name:"青蒿", latin:"Artemisiae annuae herba", part:"乾燥地上部分"},
+    {id:21, name:"枳實", latin:"Aurantii immaturus fructus", part:"乾燥幼果"},
+    {id:22, name:"苦參", latin:"Sophorae flavescentis radix", part:"乾燥根"},
+    {id:23, name:"栝樓根", latin:"Trichosanthis radix", part:"乾燥根"},
+    {id:24, name:"桃仁", latin:"Persicae semen", part:"乾燥成熟種子"},
+    {id:25, name:"桑白皮", latin:"Mori radics cortex", part:"除去栓皮層乾燥根皮"},
+    {id:26, name:"浙貝母", latin:"Fritillariae thunbergii bulbus", part:"乾燥鱗莖"},
+    {id:27, name:"浮小麥", latin:"Tritici fructus levis", part:"成熟果實中輕浮乾癟乾燥穎果"},
+    {id:28, name:"茵陳", latin:"Artemisiae herba", part:"乾燥地上部分"},
+    {id:29, name:"細辛", latin:"Asari radix", part:"乾燥根"},
+    {id:30, name:"莪朮", latin:"Curcumae rhizoma", part:"乾燥根莖"},
+    {id:31, name:"麥門冬", latin:"Ophiopogonis radix", part:"乾燥塊根"},
+    {id:32, name:"番瀉葉", latin:"Sennae folium", part:"乾燥小葉"},
+    {id:33, name:"菟絲子", latin:"Cuscutae semen", part:"乾燥成熟種子"},
+    {id:34, name:"萊菔子", latin:"Raphani semen", part:"乾燥成熟種子"},
+    {id:35, name:"黃精", latin:"Polygonati rhizoma", part:"乾燥根莖"},
+    {id:36, name:"葛根", latin:"Puerariae radix", part:"乾燥根"},
+    {id:37, name:"槐花", latin:"Sophorae flos et immaturus flos", part:"乾燥花"},
+    {id:38, name:"廣藿香", latin:"Pogostemonis herba", part:"乾燥地上部分"},
+    {id:39, name:"穀芽", latin:"Oryzae fructus germinatus", part:"加工發芽之乾燥品"},
+    {id:40, name:"澤瀉", latin:"Alisma Rhizome", part:"乾燥塊莖"},
+    {id:41, name:"燈心草", latin:"Junci medulla", part:"乾燥莖髓"},
+    {id:42, name:"獨活", latin:"Angelicae pubescentis radix", part:"乾燥根"},
+    {id:43, name:"薏苡仁", latin:"Coicis semen", part:"乾燥成熟種仁"},
+    {id:44, name:"瞿麥", latin:"Dianthi herba", part:"乾燥地上部分"},
+    {id:45, name:"鎖陽", latin:"Cynomorii herba", part:"乾燥肉質莖"},
+    {id:46, name:"蘆根", latin:"Phragmitis rhizoma", part:"乾燥根莖"},
+    {id:47, name:"蘆薈", latin:"Aloe", part:"葉的汁液濃縮乾燥物"},
+    {id:48, name:"續斷", latin:"Dipsaci radix", part:"乾燥根"},
+    {id:49, name:"龜板", latin:"Testudinis Carapax", part:"腹甲"},
+    {id:50, name:"神麴", latin:"Massa Medicata Fermentata", part:"麴劑"}
+];
+
+const NPC_LIST = [
+    { id:"npc1", name:"盧宥翔", title:"Lv.1 初學入門", desc:"作答 4~8 秒｜準確率 55%｜懸賞 $150", minTime:4.0, maxTime:8.0, acc:0.55, bounty:150, css:"lv1", badgeColor:"#27ae60" },
+    { id:"npc2", name:"郎正廉", title:"Lv.2 漸入佳境", desc:"作答 3~6 秒｜準確率 72%｜懸賞 $300", minTime:3.0, maxTime:6.0, acc:0.72, bounty:300, css:"lv2", badgeColor:"#2980b9" },
+    { id:"npc3", name:"張訓碩", title:"Lv.3 跑台高手", desc:"作答 2~4.5 秒｜準確率 85%｜懸賞 $600", minTime:2.0, maxTime:4.5, acc:0.85, bounty:600, css:"lv3", badgeColor:"#8e44ad" },
+    { id:"npc4", name:"柯宏慧", title:"Lv.4 頂尖學霸", desc:"作答 1.2~2.5 秒｜準確率 95%｜懸賞 $1,200", minTime:1.2, maxTime:2.5, acc:0.95, bounty:1200, css:"lv4", badgeColor:"#e67e22" },
+    { id:"npc5", name:"林千如", title:"Lv.5 傳說大魔王", desc:"⚡ 0.6~1.0 秒極限秒答｜準確率 99.5%｜懸賞 $3,000", minTime:0.6, maxTime:1.0, acc:0.995, bounty:3000, css:"lv5", badgeColor:"#e74c3c" }
+];
+
+const QTYPE_NAMES = { typing_input:"⌨️ 手打填充 (免打乾燥)", name_only:"🌿 只考藥材名", part_with_name:"🌱 只考部位 (有藥名)", part_no_name:"❓ 只考部位 (無藥名)", both_split:"⚖️ 雙欄各半計分", both_combined:"📦 藥名+部位四選一" };
+
+// 🚀 核心：「寫一題、讀一題」單題動態圖片載入器
+let db;
+const herbImages = {};
+
+function loadSingleHerbImage(imgEl, herbId, onReady) {
+    const h = HERB_DATA.find(x => x.id === herbId);
+    if (!h) { if (onReady) onReady(); return; }
+
+    if (herbImages[herbId]) {
+        imgEl.onload = () => { if (onReady) onReady(); };
+        imgEl.onerror = () => { if (onReady) onReady(); };
+        imgEl.src = herbImages[herbId];
+        return;
+    }
+
+    const n = h.name, id = h.id, padId = String(id).padStart(2, '0');
+    const candidates = [
+        `${id}.${n}.jpg`, `${id}.${n}.JPG`, `${id}.${n}.png`, `${id}.${n}.PNG`, `${id}.${n}.jpeg`, `${id}.${n}.JPEG`, `${id}.${n}.webp`,
+        `${id}. ${n}.jpg`, `${id}. ${n}.JPG`, `${padId}.${n}.jpg`, `${id}_${n}.jpg`, `${n}.jpg`, `${id}.jpg`,
+        `images/${id}.${n}.jpg`, `images/${id}.${n}.JPG`, `images/${id}.${n}.png`
+    ];
+    if (id === 5) {
+        candidates.push("5.烏頭.jpg", "5.烏頭.JPG", "5.烏頭.png", "5.烏頭.PNG");
+    }
+
+    let idx = 0;
+    function tryLoad() {
+        if (idx >= candidates.length) {
+            if (onReady) onReady();
+            return;
+        }
+        const url = encodeURI(candidates[idx]);
+        imgEl.onload = () => {
+            herbImages[herbId] = url;
+            if (onReady) onReady();
+        };
+        imgEl.onerror = () => {
+            idx++;
+            tryLoad();
+        };
+        imgEl.src = url;
+    }
+    tryLoad();
+}
+
+function prefetchNextHerbImage(herbId) {
+    if (!herbId || herbImages[herbId]) return;
+    const dummyImg = new Image();
+    loadSingleHerbImage(dummyImg, herbId);
+}
+
+function toggleCustomFilter() {
+    document.getElementById("custom-filter-box").style.display = (document.getElementById("quiz-type-select").value === "custom_mix") ? "block" : "none";
+}
+
+const AUTO_NEXT_KEY = "HERB_AUTO_NEXT_115";
+function loadAutoNextSetting() {
+    const saved = localStorage.getItem(AUTO_NEXT_KEY);
+    const isAuto = (saved === null) ? true : (saved === "true");
+    document.getElementById("auto-next-toggle").checked = isAuto;
+    return isAuto;
+}
+function saveAutoNextSetting() {
+    localStorage.setItem(AUTO_NEXT_KEY, document.getElementById("auto-next-toggle").checked ? "true" : "false");
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        const manualBtn = document.getElementById("manual-next-btn");
+        if (manualBtn && manualBtn.style.display === "block") { e.preventDefault(); proceedToNextQuestion(); }
+    }
+});
+
+// 錯題本與複習模式
+const WRONG_BOOK_KEY = "HERB_WRONG_BOOK_115";
+function getWrongBook() {
+    try { return JSON.parse(localStorage.getItem(WRONG_BOOK_KEY)) || {}; } catch(e) { return {}; }
+}
+function recordWrongHerb(herbId) {
+    if (!herbId) return;
+    const wb = getWrongBook(); wb[herbId] = (wb[herbId] || 0) + 1;
+    localStorage.setItem(WRONG_BOOK_KEY, JSON.stringify(wb)); updateWrongBadge();
+}
+function toggleManualWrongHerb(herbId, event) {
+    if (event) event.stopPropagation();
+    const wb = getWrongBook();
+    if (wb[herbId]) delete wb[herbId]; else wb[herbId] = 1;
+    localStorage.setItem(WRONG_BOOK_KEY, JSON.stringify(wb));
+    updateWrongBadge(); renderReviewList();
+}
+function removeHerbFromWrongBook(herbId) {
+    const wb = getWrongBook(); delete wb[herbId];
+    localStorage.setItem(WRONG_BOOK_KEY, JSON.stringify(wb)); renderWrongBook();
+}
+function clearWrongBook() {
+    if (confirm("確定要清空所有錯題紀錄嗎？")) { localStorage.removeItem(WRONG_BOOK_KEY); renderWrongBook(); }
+}
+function showReviewScreen() { updateWrongBadge(); switchReviewTab('flash'); showScreen('review-screen'); }
+function updateWrongBadge() { document.getElementById("wrong-count-badge").innerText = Object.keys(getWrongBook()).length; }
+
+function switchReviewTab(tab) {
+    ["flash","list","wrong"].forEach(t => {
+        document.getElementById(`tab-${t}-btn`).classList.toggle("active", tab === t);
+        document.getElementById(`review-tab-${t}`).style.display = (tab === t) ? "flex" : "none";
+    });
+    if (tab === "flash") initFlashcards();
+    else if (tab === "list") renderReviewList();
+    else if (tab === "wrong") renderWrongBook();
+}
+
+function renderReviewList() {
+    const query = (document.getElementById("review-search").value || "").trim().toLowerCase();
+    const masked = document.getElementById("review-mask-toggle").checked;
+    const wb = getWrongBook();
+    const container = document.getElementById("review-list-container");
+    container.innerHTML = "";
+
+    HERB_DATA.filter(h => h.id.toString().includes(query) || h.name.toLowerCase().includes(query) || h.part.toLowerCase().includes(query) || h.latin.toLowerCase().includes(query)).forEach(h => {
+        const wrongTimes = wb[h.id] || 0, inWrong = wrongTimes > 0;
+        const card = document.createElement("div");
+        card.className = "review-card-item";
+        card.onclick = () => card.classList.toggle("revealed");
+        const imgUrl = herbImages[h.id] || encodeURI(`${h.id}.${h.name}.jpg`);
+        card.innerHTML = `
+            <img src="${imgUrl}" loading="lazy" onerror="if(this.src.endsWith('.jpg'))this.src=this.src.replace('.jpg','.JPG');else if(this.src.endsWith('.JPG'))this.src=this.src.replace('.JPG','.png');">
+            <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+                    <span style="font-size:0.8rem; color:#888; font-weight:bold;">#${h.id}</span>
+                    <button class="wrong-toggle-btn ${inWrong ? 'in-wrong' : ''}" onclick="toggleManualWrongHerb(${h.id}, event)">
+                        ${inWrong ? `⭐ 已在錯題 (${wrongTimes})` : '➕ 加入錯題'}
+                    </button>
+                </div>
+                <div style="font-size:1.12rem; font-weight:900; color:var(--primary); margin:2px 0;" class="${masked ? 'mask-blur' : ''}">${h.name}</div>
+                <div style="font-size:0.88rem; font-weight:bold; color:#d35400;" class="${masked ? 'mask-blur' : ''}">部位：${h.part}</div>
+                <div style="font-size:0.73rem; color:#777; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${h.latin}</div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+let flashDeck = [], flashIndex = 0;
+function initFlashcards() {
+    const onlyWrong = document.getElementById("flash-only-wrong").checked, wb = getWrongBook();
+    let pool = [...HERB_DATA];
+    if (onlyWrong) {
+        const wp = pool.filter(h => wb[h.id]);
+        if (!wp.length) { alert("目前錯題本沒有藥材，將顯示全部藥材閃卡！"); document.getElementById("flash-only-wrong").checked = false; }
+        else pool = wp;
+    }
+    flashDeck = pool; flashIndex = 0; renderCurrentFlashcard();
+}
+function renderCurrentFlashcard() {
+    if (!flashDeck.length) return;
+    const h = flashDeck[flashIndex], inWrong = !!getWrongBook()[h.id];
+    document.getElementById("flash-progress").innerText = `卡片 ${flashIndex + 1} / ${flashDeck.length} (#${h.id})`;
+    const toggleBtn = document.getElementById("flash-wrong-toggle-btn");
+    toggleBtn.className = `wrong-toggle-btn ${inWrong ? 'in-wrong' : ''}`;
+    toggleBtn.innerText = inWrong ? "⭐ 已在錯題" : "➕ 加入錯題";
+    const imgEl = document.getElementById("flash-img");
+    loadSingleHerbImage(imgEl, h.id);
+    if (flashDeck.length > 1) prefetchNextHerbImage(flashDeck[(flashIndex + 1) % flashDeck.length].id);
+    document.getElementById("flash-front-tip").style.display = "block";
+    document.getElementById("flash-back-ans").style.display = "none";
+    document.getElementById("flash-ans-name").innerText = `${h.id}. ${h.name}`;
+    document.getElementById("flash-ans-part").innerText = `藥用部位：${h.part}`;
+    document.getElementById("flash-ans-latin").innerText = h.latin;
+}
+function toggleCurrentFlashcardWrong(event) {
+    if (event) event.stopPropagation();
+    if (!flashDeck.length) return;
+    const h = flashDeck[flashIndex], wb = getWrongBook();
+    if (wb[h.id]) delete wb[h.id]; else wb[h.id] = 1;
+    localStorage.setItem(WRONG_BOOK_KEY, JSON.stringify(wb));
+    updateWrongBadge(); renderCurrentFlashcard();
+}
+function flipFlashcard() {
+    const back = document.getElementById("flash-back-ans"), tip = document.getElementById("flash-front-tip");
+    const isHidden = (back.style.display === "none");
+    back.style.display = isHidden ? "block" : "none"; tip.style.display = isHidden ? "none" : "block";
+}
+function moveFlashcard(dir) { if (flashDeck.length) { flashIndex = (flashIndex + dir + flashDeck.length) % flashDeck.length; renderCurrentFlashcard(); } }
+function shuffleFlashcards() { flashDeck.sort(() => Math.random() - 0.5); flashIndex = 0; renderCurrentFlashcard(); }
+
+function renderWrongBook() {
+    updateWrongBadge();
+    const wb = getWrongBook(), container = document.getElementById("wrong-book-container");
+    const wrongIds = Object.keys(wb).map(id => parseInt(id, 10)).sort((a, b) => wb[b] - wb[a]);
+    if (!wrongIds.length) {
+        container.innerHTML = `<div style="padding:30px; text-align:center; color:#888;">🎉 目前沒有任何錯題紀錄！<br><span style="font-size:0.8rem;">（可從「記憶閃卡」或「圖鑑列表」手動加入）</span></div>`;
+        return;
+    }
+    container.innerHTML = "";
+    wrongIds.forEach(id => {
+        const h = HERB_DATA.find(item => item.id === id);
+        if (!h) return;
+        const imgUrl = herbImages[h.id] || encodeURI(`${h.id}.${h.name}.jpg`);
+        const card = document.createElement("div");
+        card.className = "review-card-item";
+        card.innerHTML = `
+            <img src="${imgUrl}" loading="lazy" style="width:65px;height:65px;" onerror="if(this.src.endsWith('.jpg'))this.src=this.src.replace('.jpg','.JPG');">
+            <div style="flex:1;">
+                <strong style="font-size:1.05rem; color:var(--primary);">${h.id}. ${h.name}</strong>
+                <span style="background:#fdedec; color:#e74c3c; font-size:0.75rem; padding:2px 6px; border-radius:6px; font-weight:bold; margin-left:6px;">標記 / 錯 ${wb[id]} 次</span>
+                <div style="font-size:0.88rem; color:#d35400; font-weight:bold; margin-top:2px;">部位：${h.part}</div>
+            </div>
+            <button class="badge ok" style="border:none; cursor:pointer;" onclick="removeHerbFromWrongBook(${h.id})">✔️ 移除</button>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function startWrongOnlyQuiz() {
+    const wb = getWrongBook(), wrongPool = HERB_DATA.filter(h => wb[h.id]);
+    if (!wrongPool.length) { alert("錯題本目前是空的喔！"); return; }
+    isOnlineMode = false; isNpcMode = false; currentNpc = null; myName = "錯題特訓";
+    currentQuestions = buildQuizData(wrongPool); startMatchUI();
+}
+
+// 手打智慧判分（川烏/烏頭互通）
+function checkNameTypingMatch(u, c) {
+    if (!u) return false;
+    const cleanU = u.replace(/\s+/g, "").replace(/台/g, "臺");
+    const cleanC = c.replace(/\s+/g, "").replace(/台/g, "臺");
+    if (cleanU === cleanC) return true;
+    if ((cleanC === "川烏" || cleanC === "烏頭") && (cleanU === "川烏" || cleanU === "烏頭")) return true;
+    return false;
+}
+function checkPartTypingMatch(uIn, cIn) {
+    if (!uIn) return false;
+    const norm = s => s.replace(/\s+/g, "").replace(/（/g, "(").replace(/）/g, ")").replace(/干燥/g, "乾燥").replace(/鳞/g, "鱗");
+    const u = norm(uIn), c = norm(cIn);
+    if (u === c) return true;
+    const uNoDry = u.replace(/乾燥/g, ""), cNoDry = c.replace(/乾燥/g, "");
+    if (uNoDry && uNoDry === cNoDry) return true;
+    if (cNoDry.includes("(")) {
+        const mainPart = cNoDry.replace(/\(.*?\)/g, "");
+        const innerMatch = cNoDry.match(/\((.*?)\)/);
+        if (uNoDry === mainPart || (innerMatch && uNoDry === innerMatch[1])) return true;
+    }
+    if (cNoDry === "除去栓皮層根皮" && uNoDry === "根皮") return true;
+    return false;
+}
+
+// 神農銀行與無痕作弊碼
+const WALLET_KEY = "HERB_WALLET_115";
+function getWallet() {
+    const def = { coins:200, multLv:1, freezeLv:0, bankLv:0, usedCheques:[] };
+    try { return { ...def, ...JSON.parse(localStorage.getItem(WALLET_KEY)) }; } catch(e) { return def; }
+}
+function saveWallet(w) { localStorage.setItem(WALLET_KEY, JSON.stringify(w)); updateWalletUI(); }
+function getRankTitle(w) {
+    const t = w.multLv + w.freezeLv + w.bankLv;
+    if (t >= 15 || w.coins >= 50000) return "👑 太醫院御醫首座";
+    if (t >= 10 || w.coins >= 15000) return "🔥 當代神農宗師";
+    if (t >= 6 || w.coins >= 5000) return "🌿 杏林名醫";
+    if (t >= 3 || w.coins >= 1500) return "📜 資深掌櫃";
+    return "🌱 見習藥僮";
+}
+function updateWalletUI() {
+    const w = getWallet();
+    document.getElementById("header-coins").innerText = w.coins.toLocaleString();
+    document.getElementById("bank-balance").innerText = w.coins.toLocaleString();
+    document.getElementById("bank-rank-title").innerText = getRankTitle(w);
+    document.getElementById("up-mult-lv").innerText = w.multLv;
+    document.getElementById("up-mult-val").innerText = Math.round((1 + (w.multLv - 1) * 0.25) * 100);
+    document.getElementById("up-mult-cost").innerText = w.multLv * 300;
+    document.getElementById("up-freeze-lv").innerText = w.freezeLv;
+    document.getElementById("up-freeze-val").innerText = (w.freezeLv * 0.4).toFixed(1);
+    document.getElementById("up-freeze-cost").innerText = (w.freezeLv + 1) * 500;
+    document.getElementById("up-bank-lv").innerText = w.bankLv;
+    document.getElementById("up-bank-val").innerText = w.bankLv * 3;
+    document.getElementById("up-bank-cost").innerText = (w.bankLv + 1) * 800;
+}
+function buyUpgrade(type) {
+    const w = getWallet();
+    const cost = type === "mult" ? w.multLv * 300 : (type === "freeze" ? (w.freezeLv + 1) * 500 : (w.bankLv + 1) * 800);
+    if (w.coins < cost) { alert(`神農幣不足！還差 $${(cost - w.coins).toLocaleString()}`); return; }
+    w.coins -= cost;
+    if (type === "mult") w.multLv++; else if (type === "freeze") w.freezeLv++; else w.bankLv++;
+    saveWallet(w);
+}
+function generateCheque() {
+    const amt = parseInt(document.getElementById("cheque-amount").value, 10), w = getWallet();
+    if (!amt || amt <= 0 || amt > w.coins) { alert("請確認支票金額有效且餘額充足！"); return; }
+    w.coins -= amt; saveWallet(w);
+    const serial = Math.floor(10000 + Math.random() * 90000);
+    const sig = ((amt * 13 + serial * 7) % 9973).toString(36).toUpperCase();
+    const code = `HB-${amt.toString(36).toUpperCase()}-${serial.toString(36).toUpperCase()}-${sig}`;
+    const outBox = document.getElementById("cheque-output-box");
+    outBox.style.display = "block";
+    outBox.innerHTML = `✅ 已扣款並開立 <strong>$${amt.toLocaleString()}</strong> 支票碼：<br><strong style="font-size:1.05rem; color:#d35400; user-select:all;">${code}</strong>`;
+    document.getElementById("cheque-amount").value = "";
+}
+function redeemCheque() {
+    const raw = document.getElementById("cheque-redeem-input").value.trim().toUpperCase();
+    if (!raw) return;
+    const w = getWallet();
+    if (raw === "DEV888" || raw === "RICH") { w.coins += 100000; saveWallet(w); document.getElementById("cheque-redeem-input").value = ""; alert("✅ 已存入 $100,000 神農幣！"); return; }
+    if (raw === "DEVMAX" || raw === "GOD") { w.coins += 999999; w.multLv = 10; w.freezeLv = 10; w.bankLv = 10; saveWallet(w); document.getElementById("cheque-redeem-input").value = ""; alert("✅ 特殊權限已啟用！"); return; }
+    if (raw === "DEVWIN") {
+        const rec = getLocalRecords(); rec.bestScore = 10000;
+        NPC_LIST.forEach(n => { if (!rec.npcStats[n.name]) rec.npcStats[n.name] = {win:0,lose:0,draw:0}; rec.npcStats[n.name].win += 10; });
+        localStorage.setItem(RECORD_KEY, JSON.stringify(rec)); document.getElementById("home-best-score").innerText = 10000;
+        document.getElementById("cheque-redeem-input").value = ""; alert("✅ 戰績紀錄已更新！"); return;
+    }
+    if (raw === "DEVRESET") { localStorage.removeItem(WALLET_KEY); updateWalletUI(); document.getElementById("cheque-redeem-input").value = ""; alert("✅ 帳戶已重置！"); return; }
+
+    const parts = raw.split("-");
+    if (parts.length !== 4 || parts[0] !== "HB") { alert("支票碼格式錯誤！正確格式為 HB-XXXX-XXXX-XXXX"); return; }
+    const amt = parseInt(parts[1], 36), serial = parseInt(parts[2], 36), sig = parts[3];
+    if (isNaN(amt) || isNaN(serial) || sig !== ((amt * 13 + serial * 7) % 9973).toString(36).toUpperCase()) { alert("❌ 支票防偽驗證失敗！"); return; }
+    if (w.usedCheques.includes(raw)) { alert("⚠️ 這張支票已經被兌現過了！"); return; }
+    w.usedCheques.push(raw); w.coins += amt; saveWallet(w);
+    document.getElementById("cheque-redeem-input").value = ""; alert(`🎉 支票兌現成功！已存入 $${amt.toLocaleString()} 神農幣！`);
+}
+
+// 🌐 雲端 MQTT 即時通訊引擎 (同時負責「公開房間大廳」、「即時對戰同步」與「跨手機即時匯款」)
+const MQTT_BROKERS = [
+    "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.hivemq.com:8884/mqtt"
+];
+let brokerIdx = 0;
+let mqttClient = null;
+const myClientId = "hb115_" + Math.random().toString(36).substring(2, 10);
+const LOBBY_TOPIC = "herb115/tw/lobby_v2";
+let activeRoomTopic = null;
+let activeWirePin = null;
+let discoveredRooms = {}; // pin -> { pin, hostName, qCount, modeTitle, ts }
+let hostAnnounceTimer = null;
+
+function ensureMqttConnected(onConnected) {
+    if (mqttClient && mqttClient.connected) {
+        if (onConnected) onConnected();
+        return;
+    }
+    const badge = document.getElementById("mqtt-net-badge");
+    if (badge) { badge.style.color = "#f39c12"; badge.innerText = "⏳ 正在連線雲端大廳..."; }
+
+    if (mqttClient) { try { mqttClient.end(true); } catch(e){} }
+    mqttClient = mqtt.connect(MQTT_BROKERS[brokerIdx], {
+        clientId: myClientId,
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 2000
+    });
+
+    mqttClient.on("connect", () => {
+        if (badge) { badge.style.color = "#27ae60"; badge.innerText = "🟢 雲端大廳已連線"; }
+        mqttClient.subscribe(LOBBY_TOPIC);
+        if (activeRoomTopic) mqttClient.subscribe(activeRoomTopic);
+        if (onConnected) onConnected();
+    });
+
+    mqttClient.on("error", () => {
+        // 自動切換備用雲端中繼站
+        brokerIdx = (brokerIdx + 1) % MQTT_BROKERS.length;
+    });
+
+    mqttClient.on("message", (topic, payload) => {
+        let data;
+        try { data = JSON.parse(payload.toString()); } catch(e) { return; }
+        if (!data || data.sender === myClientId) return;
+
+        // 1. 處理公開大廳房間廣播
+        if (topic === LOBBY_TOPIC) {
+            if (data.type === "ROOM_OPEN") {
+                discoveredRooms[data.pin] = { ...data, ts: Date.now() };
+                renderPublicRoomList();
+            } else if (data.type === "ROOM_CLOSE") {
+                delete discoveredRooms[data.pin];
+                renderPublicRoomList();
+            }
+            return;
+        }
+
+        // 2. 處理神農銀行跨手機即時匯款
+        if (activeWirePin && topic === `herb115/tw/wire_${activeWirePin}`) {
+            if (data.type === "WIRE_SEND" && data.amount > 0) {
+                const w = getWallet();
+                w.coins += data.amount;
+                saveWallet(w);
+                mqttClient.publish(topic, JSON.stringify({ sender: myClientId, type: "WIRE_ACK", amount: data.amount }));
+                document.getElementById("wire-receive-status").innerText = `🎉 成功收到 $${data.amount.toLocaleString()} 匯款！`;
+                alert(`💰 您已收到朋友匯來的 $${data.amount.toLocaleString()} 神農幣！`);
+            }
+            return;
+        }
+
+        // 3. 處理對戰房間訊息
+        if (topic === activeRoomTopic) {
+            handleRoomMessage(data);
+        }
+    });
+}
+
+// 定期清理已過期的大廳房間
+setInterval(() => {
+    const now = Date.now();
+    let changed = false;
+    Object.keys(discoveredRooms).forEach(pin => {
+        if (now - discoveredRooms[pin].ts > 7000) {
+            delete discoveredRooms[pin];
+            changed = true;
+        }
+    });
+    if (changed) renderPublicRoomList();
+}, 2500);
+
+function renderPublicRoomList() {
+    const box = document.getElementById("public-room-list");
+    if (!box) return;
+    const pins = Object.keys(discoveredRooms);
+    if (!pins.length) {
+        box.innerHTML = `<div style="text-align:center; color:#999; padding:18px; font-size:0.84rem;">目前尚無房間，請點擊上方按鈕建立房間！</div>`;
+        return;
+    }
+    box.innerHTML = pins.map(pin => {
+        const r = discoveredRooms[pin];
+        return `
+            <div class="room-item" onclick="joinOnlineRoom('${r.pin}')">
+                <div>
+                    <strong style="color:var(--primary); font-size:0.95rem;">🏠 ${r.hostName} 的房間</strong>
+                    <span style="background:#fff3cd; color:#d35400; font-size:0.75rem; padding:2px 6px; border-radius:6px; font-weight:bold; margin-left:4px;">#${r.pin}</span>
+                    <div style="font-size:0.76rem; color:#666; margin-top:2px;">${r.qCount} 題 ｜ ${r.modeTitle}</div>
+                </div>
+                <button class="btn btn-rival" style="margin:0; padding:6px 12px; font-size:0.82rem;">加入 ▶</button>
+            </div>
+        `;
+    }).join("");
+}
+
+function openOnlineLobby() {
+    showScreen("multi-screen");
+    ensureMqttConnected();
+    renderPublicRoomList();
+}
+
+// 雲端跨手機即時匯款
+function openReceiveWire() {
+    ensureMqttConnected(() => {
+        if (activeWirePin) mqttClient.unsubscribe(`herb115/tw/wire_${activeWirePin}`);
+        activeWirePin = Math.floor(1000 + Math.random() * 9000).toString();
+        const topic = `herb115/tw/wire_${activeWirePin}`;
+        mqttClient.subscribe(topic);
+        document.getElementById("wire-receive-box").style.display = "block";
+        document.getElementById("wire-pin-display").innerText = activeWirePin;
+        document.getElementById("wire-receive-status").innerText = "✅ 雲端收款通道已開啟！等待朋友匯款...";
+    });
+}
+
+function sendOnlineWire() {
+    const pin = document.getElementById("wire-target-pin").value.trim();
+    const amt = parseInt(document.getElementById("wire-amount").value, 10);
+    const w = getWallet();
+    if (pin.length !== 4 || !amt || amt <= 0 || amt > w.coins) {
+        alert("請確認 4 位數收款碼與金額有效，且存款餘額充足！");
+        return;
+    }
+    ensureMqttConnected(() => {
+        const topic = `herb115/tw/wire_${pin}`;
+        let acked = false;
+        mqttClient.subscribe(topic, () => {
+            mqttClient.publish(topic, JSON.stringify({ sender: myClientId, type: "WIRE_SEND", amount: amt }));
+        });
+        const listener = (t, payload) => {
+            if (t !== topic || acked) return;
+            try {
+                const d = JSON.parse(payload.toString());
+                if (d.type === "WIRE_ACK") {
+                    acked = true;
+                    mqttClient.removeListener("message", listener);
+                    mqttClient.unsubscribe(topic);
+                    const curW = getWallet();
+                    curW.coins = Math.max(0, curW.coins - amt);
+                    saveWallet(curW);
+                    document.getElementById("wire-amount").value = "";
+                    alert(`✅ 匯款 $${amt.toLocaleString()} 成功！對方已即時收款！`);
+                }
+            } catch(e){}
+        };
+        mqttClient.on("message", listener);
+        setTimeout(() => {
+            if (!acked) {
+                mqttClient.removeListener("message", listener);
+                alert("⏳ 匯款逾時未回應，請確認對方已點擊「開啟我的收款碼」且號碼正確！");
+            }
+        }, 4500);
+    });
+}
+
+function showBankScreen() { updateWalletUI(); showScreen("bank-screen"); ensureMqttConnected(); }
+function closeBankScreen() {
+    if (activeWirePin && mqttClient) { mqttClient.unsubscribe(`herb115/tw/wire_${activeWirePin}`); activeWirePin = null; }
+    document.getElementById("wire-receive-box").style.display = "none";
+    showScreen("home-screen");
+}
+
+// 戰績紀錄
+const RECORD_KEY = "HERB_QUIZ_RECORDS_115";
+function getLocalRecords() {
+    try { return JSON.parse(localStorage.getItem(RECORD_KEY)) || { totalGames:0, bestScore:0, npcStats:{}, history:[] }; }
+    catch(e) { return { totalGames:0, bestScore:0, npcStats:{}, history:[] }; }
+}
+function saveGameRecord(modeName, mySc, rivalSc, accPercent, resultText) {
+    const rec = getLocalRecords();
+    rec.totalGames++; if (mySc > rec.bestScore) rec.bestScore = mySc;
+    if (currentNpc) {
+        if (!rec.npcStats[currentNpc.name]) rec.npcStats[currentNpc.name] = { win:0, lose:0, draw:0 };
+        if (mySc > rivalSc) rec.npcStats[currentNpc.name].win++;
+        else if (mySc < rivalSc) rec.npcStats[currentNpc.name].lose++;
+        else rec.npcStats[currentNpc.name].draw++;
+    }
+    const now = new Date();
+    const timeStr = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    rec.history.unshift({ time:timeStr, mode:modeName, myScore:mySc, rivalScore:rivalSc, acc:accPercent, res:resultText });
+    if (rec.history.length > 20) rec.history.pop();
+    localStorage.setItem(RECORD_KEY, JSON.stringify(rec));
+    document.getElementById("home-best-score").innerText = rec.bestScore;
+}
+function showRecordScreen() {
+    const rec = getLocalRecords();
+    document.getElementById("record-summary").innerHTML = `🎮 累計場次：<strong>${rec.totalGames} 場</strong><br>👑 歷史最高：<strong style="color:var(--accent); font-size:1.1rem;">${rec.bestScore} 分</strong>`;
+    document.getElementById("npc-record-box").innerHTML = NPC_LIST.map(npc => {
+        const st = rec.npcStats[npc.name] || { win:0, lose:0 };
+        return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed #eee;"><span><strong style="color:${npc.badgeColor}">[${npc.title}]</strong> ${npc.name}</span><span><strong style="color:var(--correct)">${st.win} 勝</strong> / <strong style="color:var(--wrong)">${st.lose} 敗</strong></span></div>`;
+    }).join("");
+    const histContainer = document.getElementById("history-list-container");
+    histContainer.innerHTML = rec.history.length ? rec.history.map(h => `<div class="herb-item" style="font-size:0.82rem;"><div><strong>${h.mode}</strong> <span style="color:#888;">(${h.time})</span><br><span>正確率：${h.acc}%</span></div><div style="text-align:right;"><strong>${h.myScore} 分</strong> ${h.rivalScore !== null ? `vs ${h.rivalScore}` : ''}<br><span style="font-weight:bold; color:${h.res.includes('勝') ? '#27ae60' : (h.res.includes('敗') ? '#e74c3c' : '#666')}">${h.res}</span></div></div>`).join("") : `<div style="padding:15px; text-align:center; color:#999;">尚無對戰紀錄</div>`;
+    showScreen("record-screen");
+}
+function clearAllRecords() { if (confirm("確定要清空所有本地戰績嗎？")) { localStorage.removeItem(RECORD_KEY); document.getElementById("home-best-score").innerText = "0"; showRecordScreen(); } }
+
+// IndexedDB
+const request = indexedDB.open("HerbQuiz115DB", 1);
+request.onupgradeneeded = e => { db = e.target.result; db.createObjectStore("images", { keyPath:"id" }); };
+request.onsuccess = e => {
+    db = e.target.result;
+    db.transaction("images", "readonly").objectStore("images").getAll().onsuccess = ev => {
+        ev.target.result.forEach(item => { herbImages[item.id] = item.image; });
+    };
+    document.getElementById("home-best-score").innerText = getLocalRecords().bestScore;
+    loadAutoNextSetting(); updateWalletUI();
+};
+function saveImageToDB(id, dataUrl) {
+    herbImages[id] = dataUrl;
+    if (db) db.transaction("images", "readwrite").objectStore("images").put({ id, image:dataUrl });
+}
+function matchHerbByFileName(rawFileName) {
+    const baseName = rawFileName.replace(/\.[a-zA-Z0-9]+$/, "").trim();
+    if (baseName.includes("烏頭") || baseName.includes("川烏")) return HERB_DATA.find(h => h.id === 5);
+    const numPrefixMatch = baseName.match(/^0*(\d+)[\.\s_、\-]*(.*)$/);
+    if (numPrefixMatch) {
+        const id = parseInt(numPrefixMatch[1], 10), namePart = numPrefixMatch[2].trim();
+        const byId = HERB_DATA.find(h => h.id === id); if (byId) return byId;
+        if (namePart) { const byName = HERB_DATA.find(h => namePart.includes(h.name) || h.name.includes(namePart)); if (byName) return byName; }
+    }
+    return [...HERB_DATA].sort((a, b) => b.name.length - a.name.length).find(h => baseName.includes(h.name));
+}
+function handleBatchUpload(event) {
+    const files = Array.from(event.target.files).filter(f => f.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|bmp|gif|heic)$/i.test(f.name));
+    if (!files.length) { alert("未偵測到圖片檔案！"); return; }
+    let matchedCount = 0, processed = 0;
+    const statusEl = document.getElementById("import-status");
+    statusEl.style.display = "block"; statusEl.innerText = `⏳ 正在處理 ${files.length} 張圖片...`;
+    files.forEach(file => {
+        const matchedHerb = matchHerbByFileName(file.name);
+        if (matchedHerb) {
+            matchedCount++;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement("canvas"), maxDim = 500;
+                    let w = img.width, h = img.height;
+                    if (w > h && w > maxDim) { h *= maxDim / w; w = maxDim; } else if (h > maxDim) { w *= maxDim / h; h = maxDim; }
+                    canvas.width = w; canvas.height = h; canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+                    saveImageToDB(matchedHerb.id, canvas.toDataURL("image/jpeg", 0.8));
+                    processed++;
+                    if (processed === matchedCount) statusEl.innerText = `✅ 成功匯入並綁定 ${matchedCount} / ${files.length} 張藥材圖片！`;
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+// 遊戲引擎與雲端房間同步
+let isOnlineMode = false, isNpcMode = false, currentNpc = null, npcTimeout = null, autoNextTimeout = null, isHost = false;
+let currentRoomPin = null;
+let myName = "我", rivalName = "對手", myScore = 0, rivalScore = 0;
+let myAnswered = false, mySplitNameDone = false, mySplitPartDone = false, mySplitPointsEarned = 0, rivalAnswered = false, rivalChoice = null;
+let currentQuestions = [], currentIndex = 0, correctCount = 0, timerInterval, maxTimeForCurrentQ = 10.0, timeLeft = 10.0, freezeLeft = 0.0;
+let mySplitChoiceRecord = { nameChoice:null, partChoice:null };
+
+function getCurrentPotentialPoints(tLeft, maxT) { return tLeft <= 0 ? 0 : Math.max(10, Math.round((tLeft / maxT) * 200)); }
+function formatAns(name, part) { return `${name} ｜ ${part}`; }
+function getRandomWrongPart(correctPart, allParts) { const c = allParts.filter(p => p !== correctPart); return c[Math.floor(Math.random() * c.length)]; }
+function getSelectedQuestionTypes() {
+    const m = document.getElementById("quiz-type-select").value;
+    if (m !== "custom_mix") return [m];
+    const chk = Array.from(document.querySelectorAll(".mix-chk:checked")).map(el => el.value);
+    return chk.length ? chk : ["typing_input"];
+}
+
+function buildQuizData(customPool) {
+    const availablePool = customPool || [...HERB_DATA];
+    const totalQ = Math.min(parseInt(document.getElementById("quiz-count").value, 10), availablePool.length);
+    const allNames = [...new Set(HERB_DATA.map(h => h.name))], allParts = [...new Set(HERB_DATA.map(h => h.part))], allowedTypes = getSelectedQuestionTypes();
+    const questions = [];
+    let shuffledPool = [...availablePool].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < totalQ; i++) {
+        if (!shuffledPool.length) shuffledPool = [...availablePool].sort(() => Math.random() - 0.5);
+        const target = shuffledPool.pop(), qType = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+        const nameOptions = [target.name];
+        while (nameOptions.length < 4) { const c = allNames[Math.floor(Math.random() * allNames.length)]; if (!nameOptions.includes(c)) nameOptions.push(c); }
+        nameOptions.sort(() => Math.random() - 0.5);
+        const partOptions = [target.part];
+        while (partOptions.length < 4) { const c = allParts[Math.floor(Math.random() * allParts.length)]; if (!partOptions.includes(c)) partOptions.push(c); }
+        partOptions.sort(() => Math.random() - 0.5);
+
+        if (qType === "typing_input") {
+            questions.push({ herbId:target.id, qType, prompt:"⌨️ 請打字輸入「藥材名」與「藥用部位」（部位可不寫乾燥）：", answerName:target.name, answerPart:target.part });
+        } else if (qType === "name_only") {
+            questions.push({ herbId:target.id, qType, prompt:"請看圖選出正確的「藥材名稱」：", answer:target.name, options:nameOptions });
+        } else if (qType === "part_with_name") {
+            questions.push({ herbId:target.id, qType, prompt:`這是【${target.name}】，請選出它的「藥用部位」：`, answer:target.part, options:partOptions });
+        } else if (qType === "part_no_name") {
+            questions.push({ herbId:target.id, qType, prompt:"❓ 不提示藥名！請直接看圖選出它的「藥用部位」：", answer:target.part, options:partOptions });
+        } else if (qType === "both_split") {
+            questions.push({ herbId:target.id, qType, prompt:"⚖️ 請分別點選「藥材名」與「部位」（各佔一半分數）：", answerName:target.name, answerPart:target.part, nameOptions, partOptions });
+        } else {
+            const correctAnswer = formatAns(target.name, target.part), options = [correctAnswer];
+            if (Math.random() < 0.5) {
+                options.push(formatAns(target.name, getRandomWrongPart(target.part, allParts)));
+                const otherHerbs = HERB_DATA.filter(h => h.id !== target.id), twinHerb = otherHerbs[Math.floor(Math.random() * otherHerbs.length)];
+                options.push(formatAns(twinHerb.name, twinHerb.part), formatAns(twinHerb.name, getRandomWrongPart(twinHerb.part, allParts)));
+            } else {
+                const used = new Set([target.id]);
+                while (options.length < 4) { const r = HERB_DATA[Math.floor(Math.random() * HERB_DATA.length)]; if (!used.has(r.id)) { used.add(r.id); options.push(formatAns(r.name, r.part)); } }
+            }
+            options.sort(() => Math.random() - 0.5);
+            questions.push({ herbId:target.id, qType:"both_combined", prompt:"請選出正確的「藥材名稱 ｜ 藥用部位」：", answer:correctAnswer, options });
+        }
+    }
+    return questions;
+}
+
+function showNpcScreen() {
+    const rec = getLocalRecords(), container = document.getElementById("npc-list-container");
+    container.innerHTML = "";
+    NPC_LIST.forEach(npc => {
+        const st = rec.npcStats[npc.name] || { win:0, lose:0 }, card = document.createElement("div");
+        card.className = `npc-card ${npc.css}`; card.onclick = () => startNpcMatch(npc);
+        card.innerHTML = `<div><span style="background:${npc.badgeColor}; color:white; padding:2px 8px; border-radius:8px; font-size:0.78rem; font-weight:bold;">${npc.title}</span><strong style="font-size:1.15rem; margin-left:6px;">${npc.name}</strong><div style="font-size:0.8rem; color:#555; margin-top:5px;">${npc.desc}</div><div style="font-size:0.75rem; color:#888; margin-top:2px;">歷史交手：${st.win} 勝 ${st.lose} 敗</div></div><div style="font-weight:bold; color:${npc.badgeColor};">挑戰 ▶</div>`;
+        container.appendChild(card);
+    });
+    showScreen("npc-screen");
+}
+function startNpcMatch(npc) { isOnlineMode = false; isNpcMode = true; currentNpc = npc; myName = "挑戰者"; rivalName = `${npc.name} (${npc.title})`; currentQuestions = buildQuizData(); startMatchUI(); }
+function startSinglePlayer() { isOnlineMode = false; isNpcMode = false; currentNpc = null; myName = "自我練習"; currentQuestions = buildQuizData(); startMatchUI(); }
+
+// 🏠 建立公開對戰房間 (同時廣播至公開大廳列表 + 支援 4 位數房號)
+function createOnlineRoom() {
+    myName = document.getElementById("player-name").value.trim() || "房主";
+    currentRoomPin = Math.floor(1000 + Math.random() * 9000).toString();
+    activeRoomTopic = `herb115/tw/room_${currentRoomPin}`;
+    isHost = true; isOnlineMode = true; isNpcMode = false; currentNpc = null;
+
+    document.getElementById("lobby-actions").style.display = "none";
+    document.getElementById("lobby-waiting").style.display = "block";
+    document.getElementById("display-room-pin").innerText = currentRoomPin;
+    document.getElementById("conn-status").innerText = "⏳ 正在向雲端大廳註冊房間...";
+
+    const qCount = document.getElementById("quiz-count").value;
+    const mVal = document.getElementById("quiz-type-select").value;
+    const modeTitle = QTYPE_NAMES[mVal] || "🔥 綜合全考";
+
+    ensureMqttConnected(() => {
+        mqttClient.subscribe(activeRoomTopic, () => {
+            document.getElementById("conn-status").innerText = "✅ 房間已上架至公開大廳！等待對手點選加入...";
+            const announce = () => {
+                if (!isHost || !currentRoomPin || document.getElementById("game-screen").classList.contains("active")) return;
+                mqttClient.publish(LOBBY_TOPIC, JSON.stringify({
+                    sender: myClientId,
+                    type: "ROOM_OPEN",
+                    pin: currentRoomPin,
+                    hostName: myName,
+                    qCount: qCount,
+                    modeTitle: modeTitle
+                }));
+            };
+            announce();
+            clearInterval(hostAnnounceTimer);
+            hostAnnounceTimer = setInterval(announce, 2200);
+        });
+    });
+}
+
+// 🚀 加入對戰房間 (可從公開列表直接點進，或手動輸入 4 位數房號)
+function joinOnlineRoom(clickedPin) {
+    const pin = (clickedPin || document.getElementById("join-code-input").value || "").trim();
+    if (pin.length !== 4) { alert("請點擊列表中的房間，或輸入 4 位數房號！"); return; }
+
+    myName = document.getElementById("player-name").value.trim() || "挑戰者";
+    currentRoomPin = pin;
+    activeRoomTopic = `herb115/tw/room_${pin}`;
+    isHost = false; isOnlineMode = true; isNpcMode = false; currentNpc = null;
+
+    document.getElementById("lobby-actions").style.display = "none";
+    document.getElementById("lobby-waiting").style.display = "block";
+    document.getElementById("display-room-pin").innerText = pin;
+    document.getElementById("conn-status").innerText = "⏳ 正在進入房間並同步題目...";
+
+    ensureMqttConnected(() => {
+        mqttClient.subscribe(activeRoomTopic, () => {
+            mqttClient.publish(activeRoomTopic, JSON.stringify({
+                sender: myClientId,
+                type: "JOIN",
+                name: myName
+            }));
+        });
+    });
+}
+
+function sendRoomPacket(obj) {
+    if (isOnlineMode && mqttClient && mqttClient.connected && activeRoomTopic) {
+        mqttClient.publish(activeRoomTopic, JSON.stringify({ sender: myClientId, ...obj }));
+    }
+}
+
+function handleRoomMessage(data) {
+    if (data.type === "JOIN" && isHost) {
+        clearInterval(hostAnnounceTimer);
+        // 通知大廳將此房間從等待列表移除
+        mqttClient.publish(LOBBY_TOPIC, JSON.stringify({ sender: myClientId, type: "ROOM_CLOSE", pin: currentRoomPin }));
+        rivalName = data.name;
+        currentQuestions = buildQuizData();
+        sendRoomPacket({
+            type: "START_MATCH",
+            hostName: myName,
+            questions: currentQuestions
+        });
+        startMatchUI();
+    } else if (data.type === "START_MATCH" && !isHost) {
+        rivalName = data.hostName;
+        currentQuestions = data.questions;
+        startMatchUI();
+    } else if (data.type === "ANSWER") {
+        // 防止重複處理同一題封包
+        if (data.qIdx !== undefined && data.qIdx !== currentIndex) return;
+        rivalAnswered = true;
+        rivalScore = data.score;
+        rivalChoice = data.choice;
+        document.getElementById("p2-score").innerText = rivalScore;
+        document.getElementById("p2-status").innerText = `✅ 已作答 (+${data.gained || 0})`;
+        checkBothAnswered();
+    } else if (data.type === "LEAVE") {
+        if (document.getElementById("game-screen").classList.contains("active")) {
+            alert("對手已離開對戰房間！");
+            leaveLobby();
+        }
+    }
+}
+
+function leaveLobby() {
+    clearInterval(timerInterval); clearTimeout(npcTimeout); clearTimeout(autoNextTimeout); clearInterval(hostAnnounceTimer);
+    if (isOnlineMode && activeRoomTopic && mqttClient && mqttClient.connected) {
+        if (isHost && currentRoomPin) {
+            mqttClient.publish(LOBBY_TOPIC, JSON.stringify({ sender: myClientId, type: "ROOM_CLOSE", pin: currentRoomPin }));
+        }
+        sendRoomPacket({ type: "LEAVE" });
+        mqttClient.unsubscribe(activeRoomTopic);
+    }
+    activeRoomTopic = null; currentRoomPin = null; isOnlineMode = false; isNpcMode = false; currentNpc = null;
+    document.getElementById("lobby-actions").style.display = "flex";
+    document.getElementById("lobby-waiting").style.display = "none";
+    showScreen("home-screen");
+}
+
+function startMatchUI() {
+    currentIndex = 0; myScore = 0; rivalScore = 0; correctCount = 0;
+    document.getElementById("p1-name").innerText = myName; document.getElementById("p1-score").innerText = "0";
+    const hasRival = isOnlineMode || isNpcMode;
+    document.getElementById("rival-box").style.visibility = hasRival ? "visible" : "hidden";
+    if (hasRival) { document.getElementById("p2-name").innerText = rivalName; document.getElementById("p2-score").innerText = "0"; }
+    showScreen("game-screen"); loadQuestion();
+}
+
+// 🚀 考到第幾題，才讀第幾題的圖片
+function loadQuestion() {
+    if (currentIndex >= currentQuestions.length) { endGame(); return; }
+    myAnswered = false; mySplitNameDone = false; mySplitPartDone = false; mySplitPointsEarned = 0;
+    mySplitChoiceRecord = { nameChoice:null, partChoice:null };
+    rivalAnswered = !(isOnlineMode || isNpcMode); rivalChoice = null;
+    clearInterval(timerInterval); clearTimeout(npcTimeout); clearTimeout(autoNextTimeout);
+    document.getElementById("manual-next-btn").style.display = "none";
+
+    const q = currentQuestions[currentIndex];
+    maxTimeForCurrentQ = (q.qType === "typing_input") ? 20.0 : 10.0;
+    timeLeft = maxTimeForCurrentQ;
+    updateTimerHUD();
+
+    document.getElementById("hud-progress").innerText = `第 ${currentIndex + 1} / ${currentQuestions.length} 題`;
+    document.getElementById("hud-qtype-badge").innerText = QTYPE_NAMES[q.qType] || "綜合題";
+    document.getElementById("p1-status").innerText = "載入圖片中..."; document.getElementById("p2-status").innerText = "等待中...";
+    document.getElementById("q-prompt").innerText = q.prompt;
+
+    const optContainer = document.getElementById("options-container");
+    optContainer.innerHTML = "";
+
+    if (q.qType === "typing_input") {
+        const typeBox = document.createElement("div");
+        typeBox.className = "typing-box";
+        typeBox.innerHTML = `<div><label style="font-size:0.82rem; font-weight:bold; color:#444;">🌿 1. 輸入藥材名稱 (50%)：</label><input type="text" id="type-name-in" class="typing-input" placeholder="例如：三七" autocomplete="off"></div><div><label style="font-size:0.82rem; font-weight:bold; color:#444;">🌱 2. 輸入藥用部位 (50%，可不寫乾燥)：</label><input type="text" id="type-part-in" class="typing-input" placeholder="例如：根及根莖" autocomplete="off"></div><div id="type-ans-reveal" class="ans-reveal"></div><button id="type-submit-btn" class="btn btn-accent" style="margin:2px 0 0 0;" onclick="submitTypingAnswer()">✅ 送出答案 (Enter)</button>`;
+        optContainer.appendChild(typeBox);
+        const nameIn = document.getElementById("type-name-in"), partIn = document.getElementById("type-part-in");
+        nameIn.addEventListener("keydown", e => { if (e.key === "Enter") { e.stopPropagation(); partIn.focus(); } });
+        partIn.addEventListener("keydown", e => { if (e.key === "Enter") { e.stopPropagation(); submitTypingAnswer(); } });
+    } else if (q.qType === "both_split") {
+        const splitGrid = document.createElement("div"); splitGrid.className = "split-container";
+        const leftCol = document.createElement("div"); leftCol.className = "split-col"; leftCol.innerHTML = `<div class="split-header">🌿 選藥材名 (50%)</div>`;
+        q.nameOptions.forEach(opt => { const btn = document.createElement("button"); btn.className = "opt-btn split-name-btn"; btn.innerText = opt; btn.onclick = () => selectSplitAnswer("name", btn, opt, q.answerName); leftCol.appendChild(btn); });
+        const rightCol = document.createElement("div"); rightCol.className = "split-col"; rightCol.innerHTML = `<div class="split-header">🌱 選藥用部位 (50%)</div>`;
+        q.partOptions.forEach(opt => { const btn = document.createElement("button"); btn.className = "opt-btn split-part-btn"; btn.innerText = opt; btn.onclick = () => selectSplitAnswer("part", btn, opt, q.answerPart); rightCol.appendChild(btn); });
+        splitGrid.appendChild(leftCol); splitGrid.appendChild(rightCol); optContainer.appendChild(splitGrid);
+    } else {
+        const grid = document.createElement("div"); grid.className = "options-grid";
+        q.options.forEach(opt => { const btn = document.createElement("button"); btn.className = "opt-btn single-opt-btn"; btn.innerText = opt; btn.onclick = () => selectSingleAnswer(btn, opt, q.answer); grid.appendChild(btn); });
+        optContainer.appendChild(grid);
+    }
+
+    const imgEl = document.getElementById("q-img");
+    const maskEl = document.getElementById("img-loading-mask");
+    maskEl.style.display = "flex";
+
+    loadSingleHerbImage(imgEl, q.herbId, () => {
+        maskEl.style.display = "none";
+        document.getElementById("p1-status").innerText = "思考中...";
+        if (!rivalAnswered) document.getElementById("p2-status").innerText = "思考中...";
+        startTimer();
+        scheduleNpcAction(q);
+
+        if (currentIndex + 1 < currentQuestions.length) {
+            prefetchNextHerbImage(currentQuestions[currentIndex + 1].herbId);
+        }
+    });
+}
+
+function scheduleNpcAction(q) {
+    if (!isNpcMode || !currentNpc) return;
+    const speedMult = (q.qType === "typing_input") ? 2.2 : 1.0;
+    const delaySec = (currentNpc.minTime + Math.random() * (currentNpc.maxTime - currentNpc.minTime)) * speedMult;
+    npcTimeout = setTimeout(() => {
+        if (rivalAnswered) return;
+        rivalAnswered = true;
+        const fullPotential = getCurrentPotentialPoints(Math.max(0, maxTimeForCurrentQ - delaySec), maxTimeForCurrentQ);
+        if (q.qType === "both_split" || q.qType === "typing_input") {
+            const nameRight = Math.random() < currentNpc.acc, partRight = Math.random() < currentNpc.acc, halfPts = Math.round(fullPotential / 2);
+            const npcGained = (nameRight ? halfPts : 0) + (partRight ? halfPts : 0);
+            rivalScore += npcGained; document.getElementById("p2-score").innerText = rivalScore;
+            if (q.qType === "both_split") {
+                const wn = q.nameOptions.filter(o => o !== q.answerName), wp = q.partOptions.filter(o => o !== q.answerPart);
+                rivalChoice = { nameChoice: nameRight ? q.answerName : wn[0], partChoice: partRight ? q.answerPart : wp[0] };
+            }
+            document.getElementById("p2-status").innerText = `${(nameRight && partRight) ? "⚡ 全對" : ((nameRight || partRight) ? "⚖️ 半對" : "❌ 全錯")} ${delaySec.toFixed(1)}s (+${npcGained})`;
+        } else {
+            if (Math.random() < currentNpc.acc) {
+                rivalChoice = q.answer; rivalScore += fullPotential;
+                document.getElementById("p2-score").innerText = rivalScore;
+                document.getElementById("p2-status").innerText = `⚡ ${delaySec.toFixed(1)}s 答對 (+${fullPotential})`;
+            } else {
+                rivalChoice = q.options.filter(o => o !== q.answer)[0];
+                document.getElementById("p2-status").innerText = `❌ ${delaySec.toFixed(1)}s 答錯`;
+            }
+        }
+        checkBothAnswered();
+    }, delaySec * 1000);
+}
+
+function submitTypingAnswer() {
+    if (myAnswered) return; myAnswered = true;
+    const q = currentQuestions[currentIndex], nameIn = document.getElementById("type-name-in"), partIn = document.getElementById("type-part-in");
+    nameIn.disabled = true; partIn.disabled = true; document.getElementById("type-submit-btn").disabled = true;
+    document.getElementById("live-pts-box").classList.remove("danger");
+    const isNameOk = checkNameTypingMatch(nameIn.value, q.answerName), isPartOk = checkPartTypingMatch(partIn.value, q.answerPart);
+    nameIn.classList.add(isNameOk ? "correct" : "wrong"); partIn.classList.add(isPartOk ? "correct" : "wrong");
+    if (!isNameOk || !isPartOk) recordWrongHerb(q.herbId);
+    const halfPotential = Math.round(getCurrentPotentialPoints(timeLeft, maxTimeForCurrentQ) / 2);
+    let gained = 0;
+    if (isNameOk) { gained += halfPotential; correctCount += 0.5; }
+    if (isPartOk) { gained += halfPotential; correctCount += 0.5; }
+    myScore += gained; document.getElementById("p1-score").innerText = myScore;
+    document.getElementById("p1-status").innerText = `${(isNameOk && isPartOk) ? "✅ 全對" : ((isNameOk || isPartOk) ? "⚖️ 半對" : "❌ 答錯")} ${(maxTimeForCurrentQ - timeLeft).toFixed(1)}s (+${gained}分)`;
+    const revealBox = document.getElementById("type-ans-reveal");
+    revealBox.style.display = "block"; revealBox.innerHTML = `正解：<strong>${q.answerName}</strong> ｜ <strong>${q.answerPart}</strong>`;
+    sendRoomPacket({ type:"ANSWER", qIdx:currentIndex, score:myScore, gained, choice:`${nameIn.value}|${partIn.value}` });
+    checkBothAnswered();
+}
+
+function selectSplitAnswer(side, btn, selected, correctVal) {
+    if (myAnswered || (side === "name" && mySplitNameDone) || (side === "part" && mySplitPartDone)) return;
+    const q = currentQuestions[currentIndex], halfPotential = Math.round(getCurrentPotentialPoints(timeLeft, maxTimeForCurrentQ) / 2);
+    if (side === "name") { mySplitNameDone = true; mySplitChoiceRecord.nameChoice = selected; document.querySelectorAll(".split-name-btn").forEach(b => b.disabled = true); }
+    else { mySplitPartDone = true; mySplitChoiceRecord.partChoice = selected; document.querySelectorAll(".split-part-btn").forEach(b => b.disabled = true); }
+    if (selected === correctVal) { myScore += halfPotential; mySplitPointsEarned += halfPotential; correctCount += 0.5; document.getElementById("p1-score").innerText = myScore; if (btn) btn.classList.add("correct"); }
+    else { if (btn) btn.classList.add("wrong"); recordWrongHerb(q.herbId); }
+    if (mySplitNameDone && mySplitPartDone) {
+        myAnswered = true; document.getElementById("live-pts-box").classList.remove("danger");
+        document.getElementById("p1-status").innerText = `✅ ${(maxTimeForCurrentQ - timeLeft).toFixed(1)}s (+${mySplitPointsEarned}分)`;
+        sendRoomPacket({ type:"ANSWER", qIdx:currentIndex, score:myScore, gained:mySplitPointsEarned, choice:mySplitChoiceRecord });
+        checkBothAnswered();
+    } else document.getElementById("p1-status").innerText = `已選一邊 (+${mySplitPointsEarned}分)...`;
+}
+
+function selectSingleAnswer(btn, selected, correct) {
+    if (myAnswered) return; myAnswered = true;
+    const q = currentQuestions[currentIndex];
+    document.querySelectorAll(".single-opt-btn").forEach(b => b.disabled = true);
+    document.getElementById("live-pts-box").classList.remove("danger");
+    let gained = 0;
+    if (selected === correct) {
+        gained = getCurrentPotentialPoints(timeLeft, maxTimeForCurrentQ);
+        myScore += gained; correctCount += 1; document.getElementById("p1-score").innerText = myScore;
+        if (btn) btn.classList.add("correct");
+        document.getElementById("p1-status").innerText = `✅ ${(maxTimeForCurrentQ - timeLeft).toFixed(1)}s (+${gained}分)`;
+    } else {
+        if (btn) btn.classList.add("wrong");
+        document.getElementById("p1-status").innerText = `❌ 答錯 (+0分)`; recordWrongHerb(q.herbId);
+    }
+    sendRoomPacket({ type:"ANSWER", qIdx:currentIndex, score:myScore, gained, choice:selected });
+    checkBothAnswered();
+}
+
+function startTimer() {
+    clearInterval(timerInterval);
+    freezeLeft = getWallet().freezeLv * 0.4; timeLeft = maxTimeForCurrentQ; updateTimerHUD();
+    timerInterval = setInterval(() => {
+        if (freezeLeft > 0) { freezeLeft = Math.max(0, freezeLeft - 0.05); document.getElementById("freeze-indicator").style.display = "inline-block"; }
+        else { document.getElementById("freeze-indicator").style.display = "none"; timeLeft = Math.max(0, timeLeft - 0.05); }
+        updateTimerHUD();
+        if (timeLeft <= 0) { clearInterval(timerInterval); if (!myAnswered) handleTimeoutUnanswered(); }
+    }, 50);
+}
+
+function handleTimeoutUnanswered() {
+    const q = currentQuestions[currentIndex]; recordWrongHerb(q.herbId);
+    if (q.qType === "typing_input") submitTypingAnswer();
+    else if (q.qType === "both_split") {
+        myAnswered = true; document.querySelectorAll(".opt-btn").forEach(b => b.disabled = true);
+        document.getElementById("p1-status").innerText = `⌛ 逾時 (+${mySplitPointsEarned}分)`;
+        sendRoomPacket({ type:"ANSWER", qIdx:currentIndex, score:myScore, gained:mySplitPointsEarned, choice:mySplitChoiceRecord });
+        checkBothAnswered();
+    } else selectSingleAnswer(null, "逾時未答", q.answer);
+}
+
+function updateTimerHUD() {
+    document.getElementById("timer-fill").style.width = `${(timeLeft / maxTimeForCurrentQ) * 100}%`;
+    document.getElementById("live-time").innerText = timeLeft.toFixed(1);
+    if (!myAnswered) {
+        document.getElementById("live-pts").innerText = getCurrentPotentialPoints(timeLeft, maxTimeForCurrentQ);
+        const ptsBox = document.getElementById("live-pts-box");
+        if (freezeLeft <= 0 && timeLeft < maxTimeForCurrentQ * 0.85) ptsBox.classList.add("danger"); else ptsBox.classList.remove("danger");
+    }
+}
+
+function checkBothAnswered() {
+    if (myAnswered && rivalAnswered) {
+        clearInterval(timerInterval); clearTimeout(npcTimeout);
+        const q = currentQuestions[currentIndex], tagLabel = isNpcMode ? currentNpc.name : rivalName;
+        if (q.qType === "both_split") {
+            document.querySelectorAll(".split-name-btn").forEach(b => {
+                if (b.innerText === q.answerName) b.classList.add("correct");
+                if ((isOnlineMode || isNpcMode) && rivalChoice && rivalChoice.nameChoice === b.innerText) { const t = document.createElement("span"); t.className = "rival-tag"; t.innerText = tagLabel; b.appendChild(t); }
+            });
+            document.querySelectorAll(".split-part-btn").forEach(b => {
+                if (b.innerText === q.answerPart) b.classList.add("correct");
+                if ((isOnlineMode || isNpcMode) && rivalChoice && rivalChoice.partChoice === b.innerText) { const t = document.createElement("span"); t.className = "rival-tag"; t.innerText = tagLabel; b.appendChild(t); }
+            });
+        } else if (q.qType !== "typing_input") {
+            document.querySelectorAll(".single-opt-btn").forEach(b => {
+                if (b.innerText === q.answer) b.classList.add("correct");
+                if ((isOnlineMode || isNpcMode) && rivalChoice && rivalChoice === b.innerText) { const t = document.createElement("span"); t.className = "rival-tag"; t.innerText = tagLabel; b.appendChild(t); }
+            });
+        }
+        if (!isOnlineMode && !document.getElementById("auto-next-toggle").checked) {
+            document.getElementById("manual-next-btn").style.display = "block";
+        } else {
+            autoNextTimeout = setTimeout(() => proceedToNextQuestion(), 1650);
+        }
+    }
+}
+
+function proceedToNextQuestion() { clearTimeout(autoNextTimeout); document.getElementById("manual-next-btn").style.display = "none"; currentIndex++; loadQuestion(); }
+
+function endGame() {
+    showScreen("result-screen");
+    document.getElementById("res-my-name").innerText = myName;
+    document.getElementById("res-my-score").innerText = myScore;
+    const accPercent = Math.round((correctCount / currentQuestions.length) * 100);
+    let modeLabel = myName === "錯題特訓" ? "錯題特訓" : "單機練習", resultLabel = "完成練習", recordedRivalScore = null, bountyEarned = 0;
+
+    if (isOnlineMode || isNpcMode) {
+        document.getElementById("res-vs-divider").style.display = "block"; document.getElementById("res-rival-col").style.display = "block";
+        document.getElementById("res-rival-name").innerText = isNpcMode ? currentNpc.name : rivalName;
+        document.getElementById("res-rival-score").innerText = rivalScore;
+        recordedRivalScore = rivalScore; modeLabel = isNpcMode ? `挑戰 NPC：${currentNpc.name}` : `線上對戰：${rivalName}`;
+        if (myScore > rivalScore) {
+            document.getElementById("res-title").innerText = isNpcMode ? `🏆 成功擊敗 ${currentNpc.name}！` : "🏆 恭喜您獲勝！";
+            resultLabel = "🏆 獲勝"; if (isNpcMode && currentNpc) bountyEarned = currentNpc.bounty;
+        } else if (myScore < rivalScore) {
+            document.getElementById("res-title").innerText = isNpcMode ? `💀 敗給了 ${currentNpc.name}...` : "💦 惜敗！再來一局！"; resultLabel = "💀 落敗";
+        } else { document.getElementById("res-title").innerText = "🤝 平手！實力相當！"; resultLabel = "🤝 平手"; }
+    } else {
+        document.getElementById("res-title").innerText = "🎉 練習結束！";
+        document.getElementById("res-vs-divider").style.display = "none"; document.getElementById("res-rival-col").style.display = "none";
+    }
+
+    const w = getWallet();
+    const typingMult = currentQuestions.some(q => q.qType === "typing_input") ? 1.5 : 1.0;
+    const skillMult = 1 + (w.multLv - 1) * 0.25;
+    const baseCoins = Math.round((myScore * 0.15) * typingMult * skillMult);
+    const interestCoins = Math.round(w.coins * (w.bankLv * 0.03));
+    const totalEarned = baseCoins + bountyEarned + interestCoins;
+    w.coins += totalEarned; saveWallet(w);
+
+    document.getElementById("res-accuracy").innerText = `您的答對題數：${correctCount} / ${currentQuestions.length} (${accPercent}%)`;
+    document.getElementById("res-coin-reward").innerHTML = `💰 本局獲得神農幣：<strong>+$${totalEarned.toLocaleString()}</strong><br><span style="font-size:0.78rem; font-weight:normal;">(答題賞金 $${baseCoins} ${bountyEarned ? `+ 魔王懸賞 $${bountyEarned}` : ''} ${interestCoins ? `+ 定存利息 $${interestCoins}` : ''})</span>`;
+    saveGameRecord(modeLabel, myScore, recordedRivalScore, accPercent, resultLabel);
+}
+
+function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+}
+</script>
+</body>
+</html>
